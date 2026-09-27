@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 public enum JSONCoding {
     public static func encoder(pretty: Bool = false) -> JSONEncoder {
@@ -24,16 +29,12 @@ public enum AtomicFile {
         guard FileManager.default.createFile(atPath: tmp.path, contents: data, attributes: [.posixPermissions: permissions]) else {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: tmp.path])
         }
-        do {
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: url)
-            }
-            try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: url.path)
-        } catch {
+        // rename(2) atomically replaces the destination on the same filesystem.
+        guard rename(tmp.path, url.path) == 0 else {
+            let code = errno
             try? FileManager.default.removeItem(at: tmp)
-            throw error
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path,
+                                                           NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(code))])
         }
     }
 }

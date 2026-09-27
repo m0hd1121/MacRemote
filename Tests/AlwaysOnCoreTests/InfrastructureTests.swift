@@ -174,7 +174,7 @@ final class UnixSocketTests: XCTestCase {
 
     func testRefusesToReplaceRegularFile() throws {
         let path = socketPath()
-        FileManager.default.createFile(atPath: path, contents: Data("keep".utf8))
+        _ = FileManager.default.createFile(atPath: path, contents: Data("keep".utf8))
         defer { unlink(path) }
         let server = UnixSocketServer(path: path, permissions: 0o600, authorize: { _ in true }) { d, _ in d }
         XCTAssertThrowsError(try server.start())
