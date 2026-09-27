@@ -68,6 +68,15 @@ public final class HelperEngine {
         }
     }
 
+    /// Called when the helper itself is stopped: nobody would enforce the lease any more,
+    /// so the lid-closed override is withdrawn. The agent re-requests it after a restart.
+    public func releaseLidOverride(reason: String) {
+        queue.sync {
+            if state.lidOverrideApplied { revertLidOverride(reason: reason) }
+            persist()
+        }
+    }
+
     // MARK: Requests
 
     public func handle(_ request: HelperRequest) -> HelperResponse {

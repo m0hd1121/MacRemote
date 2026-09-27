@@ -50,12 +50,12 @@ final class HelperEngineTests: XCTestCase {
     private var facts = HelperPowerFacts(onBattery: false, batteryPercent: 100, thermal: .nominal)
     private var clock = Date(timeIntervalSince1970: 1_000_000)
 
-    private func makeEngine(_ system: FakeSystem, stateURL: URL? = nil) -> HelperEngine {
+    func makeEngine(_ system: FakeSystem, stateURL: URL? = nil) -> HelperEngine {
         HelperEngine(stateURL: stateURL, runner: system, logger: EventLogger(fileURL: nil),
                      powerFacts: { [unowned self] in self.facts }, now: { [unowned self] in self.clock })
     }
 
-    private func lidRequest(enabled: Bool = true, battery: Bool = false, floor: Int = 25, lease: Double = 600) -> HelperRequest {
+    func lidRequest(enabled: Bool = true, battery: Bool = false, floor: Int = 25, lease: Double = 600) -> HelperRequest {
         HelperRequest(command: .setLidClosedOperation,
                       lidClosed: LidClosedRequest(enabled: enabled, allowOnBattery: battery, batteryFloorPercent: floor, leaseSeconds: lease))
     }
@@ -201,5 +201,16 @@ final class HelperEngineTests: XCTestCase {
         XCTAssertFalse(html.contains("<script>"))
         XCTAssertTrue(html.contains("&lt;script&gt;"))
         XCTAssertTrue(html.contains("a&amp;b@example.com"))
+    }
+}
+
+extension HelperEngineTests {
+    func testReleaseOnHelperStop() {
+        let system = FakeSystem()
+        let engine = makeEngine(system)
+        _ = engine.handle(lidRequest())
+        engine.releaseLidOverride(reason: "helper stopped")
+        XCTAssertFalse(system.sleepDisabled)
+        XCTAssertEqual(engine.currentState.lastRevertReason, "helper stopped")
     }
 }

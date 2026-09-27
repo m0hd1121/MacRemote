@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  MacAlwaysOn supervisor (runs as the logged-in user, never as root).
+  __AGENT_PATH__ is replaced by Scripts/install.sh.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.macalwayson.agent</string>
+    <key>Program</key>
+    <string>__AGENT_PATH__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <!-- Restart after any exit, but not faster than every 10 s. -->
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <!-- Needs the user's GUI session: it launches and watches .app bundles. -->
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Standard</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <!-- Structured logs go to ~/Library/Logs/MacAlwaysOn; this only catches crashes. -->
+    <key>StandardErrorPath</key>
+    <string>/tmp/com.macalwayson.agent.stderr.log</string>
+</dict>
+</plist>

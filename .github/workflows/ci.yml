@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  macos:
+    name: macOS build + tests
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version && xcodebuild -version
+      - name: Build (all targets, warnings as errors)
+        run: swift build -c debug -Xswiftc -warnings-as-errors
+      - name: Unit tests
+        run: swift test
+      - name: Assemble app bundle
+        run: Scripts/build-app.sh
+      - name: Smoke-test binaries
+        run: |
+          build/MacAlwaysOn.app/Contents/MacOS/alwaysond --version
+          build/MacAlwaysOn.app/Contents/Library/Helpers/alwaysonhelper --version
+          plutil -lint Resources/LaunchAgents/com.macalwayson.agent.plist Resources/LaunchDaemons/com.macalwayson.helper.plist Resources/App/Info.plist
+          codesign --verify --deep --verbose=2 build/MacAlwaysOn.app
+
+  linux:
+    name: Core tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (warnings as errors)
+        run: swift build -Xswiftc -warnings-as-errors
+      - name: Unit tests
+        run: swift test

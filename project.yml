@@ -1,0 +1,113 @@
+# XcodeGen spec for MacAlwaysOn.xcodeproj
+#
+#   brew install xcodegen
+#   xcodegen generate
+#   open MacAlwaysOn.xcodeproj
+#
+# The generated project builds the same sources as Package.swift. Alternatively open
+# Package.swift directly in Xcode (build/test/run the executables) and use
+# Scripts/build-app.sh to assemble the .app bundle.
+name: MacAlwaysOn
+options:
+  bundleIdPrefix: com.macalwayson
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    CODE_SIGN_STYLE: Automatic
+    # Universal (arm64 + x86_64) for Release; Debug builds only the active arch.
+    ARCHS: "$(ARCHS_STANDARD)"
+targets:
+  AlwaysOnCore:
+    type: library.static
+    platform: macOS
+    sources: [Sources/AlwaysOnCore]
+    settings:
+      base:
+        PRODUCT_MODULE_NAME: AlwaysOnCore
+
+  AlwaysOnPlatform:
+    type: library.static
+    platform: macOS
+    sources: [Sources/AlwaysOnPlatform]
+    dependencies:
+      - target: AlwaysOnCore
+      - sdk: IOKit.framework
+      - sdk: AppKit.framework
+      - sdk: Network.framework
+      - sdk: CoreGraphics.framework
+
+  alwaysond:
+    type: tool
+    platform: macOS
+    sources: [Sources/alwaysond]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macalwayson.agent
+    dependencies:
+      - target: AlwaysOnCore
+      - target: AlwaysOnPlatform
+
+  alwaysonhelper:
+    type: tool
+    platform: macOS
+    sources: [Sources/alwaysonhelper]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macalwayson.helper
+    dependencies:
+      - target: AlwaysOnCore
+      - target: AlwaysOnPlatform
+
+  MacAlwaysOn:
+    type: application
+    platform: macOS
+    sources: [Sources/MacAlwaysOn]
+    info:
+      path: Resources/App/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.macalwayson.app
+        PRODUCT_NAME: MacAlwaysOn
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - target: AlwaysOnCore
+      - target: AlwaysOnPlatform
+      - target: alwaysond
+        copy:
+          destination: executables
+      - target: alwaysonhelper
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/Helpers
+    postBuildScripts:
+      - name: Embed launchd plists
+        script: |
+          set -e
+          DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library"
+          mkdir -p "$DEST/LaunchAgents" "$DEST/LaunchDaemons"
+          cp "${SRCROOT}/Resources/LaunchAgents/com.macalwayson.agent.plist" "$DEST/LaunchAgents/"
+          cp "${SRCROOT}/Resources/LaunchDaemons/com.macalwayson.helper.plist" "$DEST/LaunchDaemons/"
+        basedOnDependencyAnalysis: false
+
+  AlwaysOnCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests/AlwaysOnCoreTests]
+    dependencies:
+      - target: AlwaysOnCore
+
+schemes:
+  MacAlwaysOn:
+    build:
+      targets:
+        MacAlwaysOn: all
+        AlwaysOnCoreTests: [test]
+    test:
+      targets: [AlwaysOnCoreTests]

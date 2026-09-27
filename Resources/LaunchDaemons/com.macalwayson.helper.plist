@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  OPTIONAL privileged helper (root). Only needed for lid-closed operation without an
+  external display (pmset disablesleep) and for the tailnet-only pf anchor.
+  The binary lives in root-owned /Library/PrivilegedHelperTools so that no user can
+  replace code that runs as root.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.macalwayson.helper</string>
+    <key>Program</key>
+    <string>/Library/PrivilegedHelperTools/com.macalwayson.helper</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardErrorPath</key>
+    <string>/Library/Logs/MacAlwaysOn/helper.stderr.log</string>
+</dict>
+</plist>
