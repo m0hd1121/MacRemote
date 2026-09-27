@@ -144,8 +144,8 @@ stops flapping at the boundary.
 | Event | Detection | Action |
 |---|---|---|
 | Reboot | launchd | Sequence above. |
-| Agent crash | launchd `KeepAlive` | Restarted by launchd. Supervised CLI children are in the agent's process group and are reaped with it. `.app` services keep running and are **re-adopted** by bundle ID on start. The helper lease expires if the agent is not back within the lease window. |
-| Service crash | `Process.terminationHandler` / KVO `isTerminated` | Logged. Restarted with backoff `min(base·2ⁿ, max)` ±20% jitter. The counter resets after `stableAfterSeconds` of uptime. After `maxRestartsInWindow`, the service goes to **Failed** and waits for manual action. |
+| Agent crash | launchd `KeepAlive` | Restarted by launchd. Command services left over from the previous run are recorded in `run/children.json` (PID + start time). They are terminated on start and then relaunched, and a recycled PID is never signalled. `.app` services keep running and are **re-adopted** by bundle ID. The helper lease expires if the agent is not back within the lease window. |
+| Service crash | `Process.terminationHandler` / KVO `isTerminated` | Logged. Stops signal the service's whole process group, so grandchildren such as `npm` → `node` do not orphan. Restarted with backoff `min(base·2ⁿ, max)` ±20% jitter. The counter resets after `stableAfterSeconds` of uptime. After `maxRestartsInWindow`, the service goes to **Failed** and waits for manual action. |
 | Tailscale down | status poll + path change | Backoff 5 s → 5 min. If the GUI app process is gone → `open -b io.tailscale.ipn.macsys` / `.macos`. If `Stopped` and auto-reconnect is on → `tailscale up`. If `NeedsLogin` → report only. |
 | Network change / Wi-Fi reconnect / DNS failure | `NWPathMonitor` | Re-probe immediately, then back off. Nudge the Tailscale poll. |
 | Sleep → wake | `kIOMessageSystemHasPoweredOn` | Record the sleep interval. Re-evaluate everything. Mark services whose PIDs vanished. Re-bind the web server. |
@@ -170,4 +170,4 @@ The Diagnostics page shows the agent's own usage.
 * No port forwarding, UPnP, or NAT-PMP anywhere in the code.
 * No shell interpolation: every external command is run with an explicit argv (`ShellRunner`).
 * No secrets stored. The redactor strips `tskey-…`, bearer tokens, `password=`, and private key blocks from every log line.
-* The root helper has a fixed command set, validated inputs, a peer UID check, a root-owned binary location, and no network access.
+* The root helper has a fixed command set, validated inputs, a peer UID check, a root-owned binary location, and no network access. If the helper itself is stopped, it withdraws the lid-closed override, because nothing would enforce the lease any more.

@@ -71,18 +71,18 @@ public struct ShellRunner: CommandRunning {
         }
 
         // Drain both pipes concurrently so a chatty child cannot block on a full pipe buffer.
-        var outData = Data()
-        var errData = Data()
+        let outData = DataBox()
+        let errData = DataBox()
         let group = DispatchGroup()
         let ioQueue = DispatchQueue.global(qos: .utility)
         group.enter()
         ioQueue.async {
-            outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+            outData.set(outPipe.fileHandleForReading.readDataToEndOfFile())
             group.leave()
         }
         group.enter()
         ioQueue.async {
-            errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            errData.set(errPipe.fileHandleForReading.readDataToEndOfFile())
             group.leave()
         }
         if let inPipe, let stdin {
@@ -105,9 +105,27 @@ public struct ShellRunner: CommandRunning {
 
         return CommandResult(
             status: process.terminationStatus,
-            stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self),
+            stdout: String(decoding: outData.get(), as: UTF8.self),
+            stderr: String(decoding: errData.get(), as: UTF8.self),
             timedOut: timedOut
         )
+    }
+}
+
+/// Lock-protected buffer filled by a pipe-draining thread.
+private final class DataBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func set(_ value: Data) {
+        lock.lock()
+        data = value
+        lock.unlock()
+    }
+
+    func get() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
     }
 }
