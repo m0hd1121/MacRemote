@@ -16,14 +16,26 @@ jobs:
         run: swift build -c debug -Xswiftc -warnings-as-errors
       - name: Unit tests
         run: swift test
-      - name: Assemble app bundle
-        run: Scripts/build-app.sh
+      - name: Assemble app bundle (Universal: arm64 + x86_64)
+        run: Scripts/build-app.sh --universal
       - name: Smoke-test binaries
         run: |
           build/MacAlwaysOn.app/Contents/MacOS/alwaysond --version
           build/MacAlwaysOn.app/Contents/Library/Helpers/alwaysonhelper --version
           plutil -lint Resources/LaunchAgents/com.macalwayson.agent.plist Resources/LaunchDaemons/com.macalwayson.helper.plist Resources/App/Info.plist
           codesign --verify --deep --verbose=2 build/MacAlwaysOn.app
+      - name: Package app
+        # ditto keeps the bundle structure, permissions and code signatures intact.
+        run: |
+          cp Scripts/install.sh Scripts/uninstall.sh build/ 2>/dev/null || true
+          cd build && ditto -c -k --sequesterRsrc --keepParent MacAlwaysOn.app MacAlwaysOn.zip
+          shasum -a 256 MacAlwaysOn.zip
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacAlwaysOn-app
+          path: build/MacAlwaysOn.zip
+          retention-days: 30
 
   linux:
     name: Core tests (Linux)
