@@ -16,7 +16,7 @@ jobs:
         run: swift build -c debug -Xswiftc -warnings-as-errors
       - name: Unit tests
         run: swift test
-      - name: Assemble app bundle (Universal: arm64 + x86_64)
+      - name: "Assemble app bundle (Universal: arm64 + x86_64)"
         run: Scripts/build-app.sh --universal
       - name: Smoke-test binaries
         run: |
