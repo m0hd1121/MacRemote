@@ -6,6 +6,10 @@ import AlwaysOnCore
 struct MacAlwaysOnApp: App {
     @StateObject private var store = AgentStore()
 
+    init() {
+        AppLog.write("MacAlwaysOn \(Identifiers.version) launching on \(ProcessInfo.processInfo.operatingSystemVersionString)")
+    }
+
     var body: some Scene {
         Window("MacAlwaysOn", id: "main") {
             ContentView()
@@ -54,32 +58,91 @@ enum SidebarSection: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @EnvironmentObject private var store: AgentStore
-    @State private var selection: SidebarSection? = .dashboard
+    @State private var selection: SidebarSection = .dashboard
 
+    // A plain two-pane layout rather than NavigationSplitView: the split view rendered an
+    // empty window when this app (built with an older SDK) ran on macOS 27.
     var body: some View {
-        NavigationSplitView {
-            List(SidebarSection.allCases, selection: $selection) { section in
-                Label(section.title, systemImage: section.symbol).tag(section)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-        } detail: {
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
             VStack(spacing: 0) {
                 AgentBanner()
-                switch selection ?? .dashboard {
-                case .dashboard: DashboardView()
-                case .services: ServicesView()
-                case .remoteAccess: RemoteAccessView()
-                case .diagnostics: DiagnosticsView()
-                case .logs: LogsView()
-                case .settings: SettingsView()
-                }
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .navigationTitle((selection ?? .dashboard).title)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .navigationTitle("MacAlwaysOn — \(selection.title)")
+        .onAppear { AppLog.write("main window appeared") }
         .alert("MacAlwaysOn", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) {
             Button("OK", role: .cancel) { store.message = nil }
         } message: {
             Text(store.message ?? "")
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(SidebarSection.allCases) { section in
+                Button {
+                    selection = section
+                } label: {
+                    Label(section.title, systemImage: section.symbol)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(selection == section ? Color.white : Color.primary)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(selection == section ? Color.accentColor : Color.clear)
+                )
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                Circle().fill(store.overallLevel?.color ?? .gray).frame(width: 8, height: 8)
+                Text(store.agentReachable ? "Agent running" : "Agent not running")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+        }
+        .padding(10)
+        .frame(width: 200)
+        .frame(maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        switch selection {
+        case .dashboard: DashboardView()
+        case .services: ServicesView()
+        case .remoteAccess: RemoteAccessView()
+        case .diagnostics: DiagnosticsView()
+        case .logs: LogsView()
+        case .settings: SettingsView()
+        }
+    }
+}
+
+/// Minimal launch diagnostics written to stderr and ~/Library/Logs/MacAlwaysOn/app.log,
+/// so a blank or hung window can be diagnosed without a debugger.
+enum AppLog {
+    private static let url = UserPaths().logsDirectory.appendingPathComponent("app.log")
+
+    static func write(_ message: String) {
+        let line = "\(ISO8601DateFormatter().string(from: Date())) \(message)\n"
+        FileHandle.standardError.write(Data(line.utf8))
+        try? FilePermissions.ensurePrivateDirectory(url.deletingLastPathComponent())
+        if let handle = try? FileHandle(forWritingTo: url) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(line.utf8))
+            try? handle.close()
+        } else {
+            _ = FileManager.default.createFile(atPath: url.path, contents: Data(line.utf8), attributes: [.posixPermissions: 0o600])
         }
     }
 }
