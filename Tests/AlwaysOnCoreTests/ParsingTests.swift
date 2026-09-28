@@ -159,3 +159,48 @@ final class IPAddressTests: XCTestCase {
         XCTAssertFalse(InterfaceAddresses.current().isEmpty, "loopback at least")
     }
 }
+
+extension TailscaleParserTests {
+    func testStatusSurroundedByWarningLines() throws {
+        let noisy = "Warning: client version \"1.90.1\" != tailscaled server version \"1.90.0\"\n" + Self.runningJSON + "\n"
+        let json = try XCTUnwrap(TailscaleStatusParser.extractJSONObject(noisy))
+        XCTAssertEqual(try TailscaleStatusParser.parse(Data(json.utf8)).ipv4, "100.101.102.103")
+    }
+
+    func testUnexpectedFieldTypesDoNotBreakParsing() throws {
+        let odd = #"{"BackendState":"Running","Health":null,"Peer":null,"CurrentTailnet":null,"Version":3,"# +
+            #""TailscaleIPs":["100.106.10.29"],"Self":{"HostName":"mac","Online":"yes","DNSName":"mac.ts.net."}}"#
+        let s = try TailscaleStatusParser.parse(Data(odd.utf8))
+        XCTAssertTrue(s.isRunning)
+        XCTAssertEqual(s.ipv4, "100.106.10.29")
+        XCTAssertEqual(s.dnsName, "mac.ts.net")
+        XCTAssertNil(s.version)
+        XCTAssertEqual(s.peerCount, 0)
+    }
+
+    func testNoJSONYieldsNil() {
+        XCTAssertNil(TailscaleStatusParser.extractJSONObject("The Tailscale GUI failed to start"))
+    }
+}
+
+extension TailscaleMonitorTests {
+    func testUnreadableOutputReportsSnippet() {
+        let junk = CommandResult(status: 0, stdout: "something unexpected", stderr: "", timedOut: false)
+        let monitor = TailscaleMonitor(settings: TailscaleSettings(), logger: EventLogger(fileURL: nil), runner: FakeRunner([junk]),
+                                       environment: nil, locate: { _ in TailscaleInstallation(cliPath: "/x", variant: .openSource, appBundleID: nil) })
+        XCTAssertTrue(monitor.checkNow().lastError?.contains("something unexpected") ?? false)
+    }
+}
+
+extension DiagnosticsTests {
+    func testClamshellFlagAloneIsNotTrustedOnBattery() {
+        var s = StatusSnapshot(generatedAt: Date(), refreshIntervalSeconds: 15, agent: AgentInfo(version: "1", pid: 1, startedAt: Date()))
+        s.power.source = .battery
+        s.power.lid = .open
+        s.power.clamshellCausesSleep = false
+        s.power.systemSleepDisabled = false
+        s.system.externalDisplayConnected = false
+        let check = DiagnosticsEngine.evaluate(s, context: DiagnosticsContext()).checks.first { $0.id == "power.lidCapable" }
+        XCTAssertEqual(check?.outcome, .warning)
+    }
+}

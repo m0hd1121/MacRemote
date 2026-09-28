@@ -37,7 +37,7 @@ public struct TailscaleCLI: Sendable {
     public let installation: TailscaleInstallation
     private let runner: CommandRunning
 
-    public init(installation: TailscaleInstallation, runner: CommandRunning = ShellRunner()) {
+    public init(installation: TailscaleInstallation, runner: CommandRunning = ShellRunner.withUserContext()) {
         self.installation = installation
         self.runner = runner
     }
@@ -73,13 +73,22 @@ public struct TailscaleCLI: Sendable {
         let result = try runner.run(installation.cliPath, ["status", "--json"], stdin: nil, timeout: 15)
         // `status --json` prints valid JSON even when the backend is Stopped / NeedsLogin
         // (sometimes with a non-zero exit), so try to parse first.
-        if let data = result.stdout.data(using: .utf8), result.stdout.contains("{"),
-           let parsed = try? TailscaleStatusParser.parse(data) {
-            return parsed
+        var parseError: String?
+        if let json = TailscaleStatusParser.extractJSONObject(result.stdout) {
+            do {
+                return try TailscaleStatusParser.parse(Data(json.utf8))
+            } catch {
+                parseError = "\(error)"
+            }
         }
         if result.timedOut { throw TailscaleCLIError.commandFailed("tailscale status timed out") }
-        let message = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        throw TailscaleCLIError.commandFailed(message.isEmpty ? "tailscale status exited with \(result.status)" : Redactor.redact(message))
+        var message = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if message.isEmpty {
+            let out = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            let snippet = out.isEmpty ? "no output" : "output began: \"\(String(out.prefix(160)))\""
+            message = "tailscale status exited with \(result.status) but returned no readable status (\(parseError ?? snippet))"
+        }
+        throw TailscaleCLIError.commandFailed(Redactor.redact(message))
     }
 
     /// Plain `tailscale up` with no flags: re-enables an already configured node without

@@ -26,7 +26,7 @@ public final class NetworkPathMonitor {
             guard let self else { return }
             let info = NetworkPathInfo(
                 satisfied: path.status == .satisfied,
-                interfaces: path.availableInterfaces.map { "\(Self.typeName($0.type)):\($0.name)" },
+                interfaces: path.availableInterfaces.map { "\(Self.typeName($0.type)):\($0.name)" }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } },
                 primaryType: path.availableInterfaces.first.map { Self.typeName($0.type) }
             )
             guard info != self.last else { return }

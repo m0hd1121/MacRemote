@@ -1,32 +1,5 @@
 import Foundation
 
-/// Subset of `tailscale status --json` that we use. All fields optional: the schema is
-/// stable but older clients omit some keys.
-public struct TailscaleStatusJSON: Decodable, Sendable {
-    public struct Node: Decodable, Sendable {
-        public var HostName: String?
-        public var DNSName: String?
-        public var OS: String?
-        public var Online: Bool?
-        public var TailscaleIPs: [String]?
-    }
-
-    public struct Tailnet: Decodable, Sendable {
-        public var Name: String?
-        public var MagicDNSSuffix: String?
-        public var MagicDNSEnabled: Bool?
-    }
-
-    public var Version: String?
-    public var BackendState: String?
-    public var TailscaleIPs: [String]?
-    public var `Self`: Node?
-    public var Health: [String]?
-    public var MagicDNSSuffix: String?
-    public var CurrentTailnet: Tailnet?
-    public var Peer: [String: Node]?
-}
-
 public struct TailscaleParsedStatus: Equatable, Sendable {
     public var version: String?
     public var backendState: String?
@@ -45,27 +18,43 @@ public struct TailscaleParsedStatus: Equatable, Sendable {
 }
 
 public enum TailscaleStatusParser {
+    public enum ParseError: Error, CustomStringConvertible {
+        case notAnObject
+
+        public var description: String { "status JSON is not an object" }
+    }
+
+    /// Returns the outermost `{ … }` in `text`, ignoring any warning lines the CLI prints
+    /// around it (e.g. client/daemon version mismatch notices).
+    public static func extractJSONObject(_ text: String) -> String? {
+        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end else { return nil }
+        return String(text[start...end])
+    }
+
+    /// Parsed with JSONSerialization rather than Codable so an unexpected type in a field we
+    /// do not rely on can never make the whole status unreadable.
     public static func parse(_ data: Data) throws -> TailscaleParsedStatus {
-        let raw = try JSONDecoder().decode(TailscaleStatusJSON.self, from: data)
-        let ips = raw.TailscaleIPs ?? raw.`Self`?.TailscaleIPs ?? []
-        let ipv4 = ips.first { IPv4Address($0) != nil }
-        let ipv6 = ips.first { $0.contains(":") }
-        var dnsName = raw.`Self`?.DNSName
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ParseError.notAnObject }
+        let me = root["Self"] as? [String: Any]
+        let ips = (root["TailscaleIPs"] as? [String]) ?? (me?["TailscaleIPs"] as? [String]) ?? []
+        let tailnet = root["CurrentTailnet"] as? [String: Any]
+        var dnsName = me?["DNSName"] as? String
         if let name = dnsName, name.hasSuffix(".") { dnsName = String(name.dropLast()) }
-        let peers = raw.Peer.map { Array($0.values) } ?? []
+        let peers = (root["Peer"] as? [String: Any])?.values.compactMap { $0 as? [String: Any] } ?? []
+        let health = (root["Health"] as? [Any])?.compactMap { $0 as? String } ?? []
         return TailscaleParsedStatus(
-            version: raw.Version,
-            backendState: raw.BackendState,
-            ipv4: ipv4,
-            ipv6: ipv6,
-            hostName: raw.`Self`?.HostName,
+            version: root["Version"] as? String,
+            backendState: root["BackendState"] as? String,
+            ipv4: ips.first { IPv4Address($0) != nil },
+            ipv6: ips.first { $0.contains(":") },
+            hostName: me?["HostName"] as? String,
             dnsName: dnsName?.isEmpty == true ? nil : dnsName,
-            tailnetName: raw.CurrentTailnet?.Name,
-            magicDNSSuffix: raw.CurrentTailnet?.MagicDNSSuffix ?? raw.MagicDNSSuffix,
-            selfOnline: raw.`Self`?.Online,
+            tailnetName: tailnet?["Name"] as? String,
+            magicDNSSuffix: (tailnet?["MagicDNSSuffix"] as? String) ?? (root["MagicDNSSuffix"] as? String),
+            selfOnline: me?["Online"] as? Bool,
             peerCount: peers.count,
-            onlinePeerCount: peers.filter { $0.Online == true }.count,
-            health: raw.Health ?? []
+            onlinePeerCount: peers.filter { ($0["Online"] as? Bool) == true }.count,
+            health: health
         )
     }
 

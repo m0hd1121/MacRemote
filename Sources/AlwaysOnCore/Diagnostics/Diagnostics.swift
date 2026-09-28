@@ -196,9 +196,11 @@ public enum DiagnosticsEngine {
             }
             return DiagnosticCheck(id: "power.lidCapable", category: .power, title: title, outcome: p.source == .battery ? .warning : .pass, detail: detail)
         }
-        if p.clamshellCausesSleep == false {
+        // AppleClamshellCausesSleep alone is not trusted: on recent macOS it has been observed
+        // reading "No" on battery with no display, where closing the lid does sleep the Mac.
+        if p.clamshellCausesSleep == false && s.system.externalDisplayConnected == true && p.source != .battery {
             return DiagnosticCheck(id: "power.lidCapable", category: .power, title: title, outcome: .pass,
-                                   detail: "Yes. macOS reports that closing the lid will not cause sleep right now (closed-display mode conditions are met).")
+                                   detail: "Yes. On AC with an external display, and macOS reports that closing the lid will not cause sleep (closed-display mode).")
         }
         if s.system.externalDisplayConnected == true && p.source != .battery {
             return DiagnosticCheck(id: "power.lidCapable", category: .power, title: title, outcome: .pass,

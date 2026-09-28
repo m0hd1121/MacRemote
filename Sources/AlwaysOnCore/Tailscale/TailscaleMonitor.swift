@@ -23,7 +23,7 @@ public final class TailscaleMonitor {
     private var running = false
     private var lastUpAttempt: Date?
 
-    public init(settings: TailscaleSettings, logger: EventLogger, runner: CommandRunning = ShellRunner(),
+    public init(settings: TailscaleSettings, logger: EventLogger, runner: CommandRunning = ShellRunner.withUserContext(),
                 environment: TailscaleHostEnvironment?,
                 locate: @escaping (String) -> TailscaleInstallation? = { TailscaleCLI.locate(override: $0) }) {
         self.settings = settings

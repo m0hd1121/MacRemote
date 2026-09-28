@@ -554,7 +554,7 @@ final class AgentController {
         webAuthLock.unlock()
         var login: String?
         if let install = TailscaleCLI.locate(override: stateQueue.sync { config.tailscale.cliPathOverride }) {
-            login = TailscaleCLI(installation: install, runner: runner).whoisLogin(ip: peer)
+            login = TailscaleCLI(installation: install).whoisLogin(ip: peer)
         }
         let ok = login.map { name in allowed.contains { $0.caseInsensitiveCompare(name) == .orderedSame } } ?? false
         webAuthLock.lock()

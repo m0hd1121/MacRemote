@@ -41,6 +41,19 @@ public struct ShellRunner: CommandRunning {
         self.environment = environment
     }
 
+    /// For user-level tools such as the Tailscale CLI, which locate their daemon / app
+    /// container through HOME, USER and TMPDIR: the fixed minimal environment plus those.
+    public static func withUserContext() -> ShellRunner {
+        var env = ShellRunner().environment
+        let inherited = ProcessInfo.processInfo.environment
+        for key in ["HOME", "USER", "LOGNAME", "TMPDIR"] {
+            if let value = inherited[key] { env[key] = value }
+        }
+        if env["HOME"] == nil { env["HOME"] = FileManager.default.homeDirectoryForCurrentUser.path }
+        if let path = inherited["PATH"] { env["PATH"] = path }
+        return ShellRunner(environment: env)
+    }
+
     public func run(_ executable: String, _ arguments: [String], stdin: Data?, timeout: TimeInterval) throws -> CommandResult {
         guard FileManager.default.isExecutableFile(atPath: executable) else {
             throw CommandError.notExecutable(executable)
