@@ -181,9 +181,15 @@ struct MenuBarView: View {
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 Spacer()
-                Button("Quit") { NSApp.terminate(nil) }
+                Button(store.agentReachable ? "Stop Agent" : "Start Agent") {
+                    if store.agentReachable { store.stopAgent() } else { store.restartAgent() }
+                }
             }
-            Text("Quitting this window does not stop the agent.").font(.caption2).foregroundStyle(.tertiary)
+            Button("Stop Agent and Quit") {
+                store.stopAgent()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { NSApp.terminate(nil) }
+            }
+            Button("Quit App Only (agent keeps running)") { NSApp.terminate(nil) }
         }
         .padding(14)
         .frame(width: 320)

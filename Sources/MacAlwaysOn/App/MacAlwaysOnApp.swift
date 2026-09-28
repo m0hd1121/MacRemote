@@ -104,10 +104,16 @@ struct ContentView: View {
             Spacer()
             HStack(spacing: 6) {
                 Circle().fill(store.overallLevel?.color ?? .gray).frame(width: 8, height: 8)
-                Text(store.agentReachable ? "Agent running" : "Agent not running")
+                Text(store.agentReachable ? "Agent running" : "Agent stopped")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 10)
+            Button(store.agentReachable ? "Stop Background Agent" : "Start Background Agent") {
+                if store.agentReachable { store.stopAgent() } else { store.restartAgent() }
+            }
+            .controlSize(.small)
+            .padding(.horizontal, 10)
+            .help("The agent keeps the Mac awake and your services running. Stopping it also keeps it off at login until you start it again.")
         }
         .padding(10)
         .frame(width: 200)
@@ -154,7 +160,7 @@ struct AgentBanner: View {
 
     var body: some View {
         if !store.agentReachable {
-            banner(text: "The background agent is not responding. Always-On is not being enforced and services are not supervised.",
+            banner(text: "The background agent is not running. Always-On is not being enforced and services are not supervised.",
                    color: .red)
         } else if let snapshot = store.snapshot, snapshot.isStale() {
             banner(text: "The agent's last report is \(Formatting.duration(Date().timeIntervalSince(snapshot.generatedAt))) old; data shown may be out of date.",
@@ -167,7 +173,7 @@ struct AgentBanner: View {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(color)
             Text(text).fixedSize(horizontal: false, vertical: true)
             Spacer()
-            Button("Restart Agent") { store.restartAgent() }
+            Button("Start Agent") { store.restartAgent() }
         }
         .padding(10)
         .background(color.opacity(0.12))

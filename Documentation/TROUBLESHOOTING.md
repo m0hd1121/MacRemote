@@ -23,6 +23,18 @@ serious/critical thermal state, when the agent stops renewing its 10-minute leas
 the helper itself stops. `helper.log` records the reason:
 `sudo tail /Library/Logs/MacAlwaysOn/helper.log`.
 
+## Stopping MacAlwaysOn
+
+Quitting the window, or force-quitting `alwaysond`, does **not** stop the agent: launchd
+restarts it on purpose (`KeepAlive`), so a crash can never silently disable Always-On. To stop it:
+
+* In the app: **Stop Background Agent** (sidebar), or **Stop Agent and Quit** (menu bar).
+* In Terminal: `launchctl disable gui/$(id -u)/com.macalwayson.agent; launchctl bootout gui/$(id -u)/com.macalwayson.agent`
+
+A stopped agent stays off after restarts until you press **Start Background Agent** (or run
+`Scripts/install.sh --skip-build`). Stopping it ends the command-line services it supervises;
+GUI apps it launched keep running. `Scripts/uninstall.sh` removes everything.
+
 ## The dashboard says "Agent not running"
 
 ```bash

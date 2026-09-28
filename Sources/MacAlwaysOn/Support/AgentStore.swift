@@ -115,13 +115,33 @@ final class AgentStore: ObservableObject {
 
     // MARK: Agent process
 
+    /// Starts (or restarts) the LaunchAgent and re-enables it at login.
     func restartAgent() {
-        let label = "gui/\(getuid())/\(Identifiers.agentLabel)"
+        let domain = "gui/\(getuid())"
+        let service = "\(domain)/\(Identifiers.agentLabel)"
+        let plist = paths.launchAgentPlist.path
+        runLaunchctl([["enable", service], ["bootstrap", domain, plist], ["kickstart", "-k", service]],
+                     failure: "Could not start the agent. Is it installed? Run Scripts/install.sh.")
+    }
+
+    /// Stops the LaunchAgent and keeps it off at future logins until started again here.
+    /// Command-line services it supervises are stopped with it; GUI apps keep running.
+    func stopAgent() {
+        let service = "gui/\(getuid())/\(Identifiers.agentLabel)"
+        runLaunchctl([["disable", service], ["bootout", service]], failure: "Could not stop the agent.")
+    }
+
+    /// Runs launchctl steps in order. `bootstrap` / `bootout` report an error when the job is
+    /// already in the requested state, so only the final step decides success.
+    private func runLaunchctl(_ steps: [[String]], failure: String) {
         work.async { [weak self] in
-            let result = try? ShellRunner().run(SystemPaths.launchctl, ["kickstart", "-k", label], timeout: 15)
+            var last: CommandResult?
+            for step in steps {
+                last = try? ShellRunner().run(SystemPaths.launchctl, step, timeout: 20)
+            }
             DispatchQueue.main.async {
-                if result?.succeeded != true {
-                    self?.message = "Could not restart the agent. Is it installed? Run Scripts/install.sh. \(result?.stderr ?? "")"
+                if last?.succeeded != true, steps.last?.first != "bootout" {
+                    self?.message = "\(failure) \(last?.stderr ?? "")"
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self?.refresh() }
             }

@@ -59,8 +59,9 @@ mkdir -p "$HOME/Library/LaunchAgents"
 sed "s#__AGENT_PATH__#$APP/Contents/MacOS/alwaysond#" Resources/LaunchAgents/$AGENT_LABEL.plist > "$PLIST"
 chmod 644 "$PLIST"
 plutil -lint "$PLIST" >/dev/null
-launchctl bootstrap "gui/$USER_ID" "$PLIST"
+# enable first: bootstrap refuses a service that was disabled with "Stop Agent".
 launchctl enable "gui/$USER_ID/$AGENT_LABEL"
+launchctl bootstrap "gui/$USER_ID" "$PLIST"
 launchctl kickstart -k "gui/$USER_ID/$AGENT_LABEL"
 echo "Agent registered: $PLIST"
 
