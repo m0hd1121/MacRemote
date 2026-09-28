@@ -23,8 +23,8 @@ public final class AppLauncher: ServiceLauncher {
         configuration.arguments = spec.arguments
         if !spec.environment.isEmpty { configuration.environment = spec.environment }
 
-        DispatchQueue.main.async {
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] app, error in
+        DispatchQueue.main.async { [weak self] in
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
                 guard let app else {
                     completion(.failure(error ?? NSError(domain: "MacAlwaysOn", code: 1,
                                                          userInfo: [NSLocalizedDescriptionKey: "NSWorkspace could not open \(spec.path)"])))

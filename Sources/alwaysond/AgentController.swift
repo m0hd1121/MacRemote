@@ -411,7 +411,7 @@ final class AgentController {
     // MARK: Network probes
 
     private func scheduleNetworkProbe(after delay: Double) {
-        stateQueue.async {
+        stateQueue.async { [self] in
             self.networkProbeGeneration += 1
             let generation = self.networkProbeGeneration
             self.probeQueue.asyncAfter(deadline: .now() + delay) { [weak self] in
